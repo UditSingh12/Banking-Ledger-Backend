@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/* ─── Design Token System ───────────────────────────────────────────────── */
+@theme {
+  /* Palette */
+  --color-ink:          #0B0E13;
+  --color-ink-soft:     #161B24;
+  --color-paper:        #EDEAE2;
+  --color-paper-warm:   #F7F4EE;
+  --color-brass:        #B68D40;
+  --color-brass-light:  #D4A853;
+  --color-brass-dark:   #8A6A2E;
+  --color-ledger:       #17392E;
+  --color-ledger-light: #1F4D3D;
+  --color-debit:        #9B3B3B;
+  --color-debit-light:  #C44F4F;
+  --color-slate:        #6B7280;
+  --color-slate-light:  #9CA3AF;
+  --color-border:       #2A2F3A;
+  --color-border-paper: #D4CFC5;
+
+  /* Typography */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body:    "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono:    "IBM Plex Mono", "Courier New", monospace;
+
+  /* Spacing extras */
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+
+  /* Border radius */
+  --radius-sm:  2px;
+  --radius-md:  4px;
+  --radius-lg:  8px;
+
+  /* Transitions */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ─── Global Base ───────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Numeric / mono elements */
+.font-mono,
+[data-mono] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Eyebrow label style */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-slate);
+}
+
+/* Focus ring – visible for keyboard nav */
+:focus-visible {
+  outline: 2px solid var(--color-brass);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+/* Selection colour */
+::selection {
+  background-color: var(--color-brass);
+  color: var(--color-ink);
+}
+
+/* Ruled ledger-paper background (used in hero) */
+.ledger-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 31px,
+    rgba(176, 141, 64, 0.08) 31px,
+    rgba(176, 141, 64, 0.08) 32px
+  );
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-ink); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-brass-dark); }
