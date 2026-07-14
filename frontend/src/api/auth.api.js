@@ -29,27 +29,29 @@ export async function resendOTP(data) {
 
 /**
  * POST /api/auth/login
- * Returns user object on success. Throws 403 with userId if unverified.
+ * Returns { _id, email, name, expiresAt } on success.
+ * Throws 403 with userId if unverified.
+ * Throws 423 with lockedUntil if account is locked.
  */
 export async function login(data) {
   const res = await api.post('/auth/login', data);
-  return res.data?.user ?? res.data;
+  return res.data;
 }
 
 /**
- * POST /api/auth/change-password  (protected)
+ * POST /api/auth/logout (protected)
+ * Increments tokenVersion server-side to invalidate the current token.
+ */
+export async function logout() {
+  const res = await api.post('/auth/logout');
+  return res.data;
+}
+
+/**
+ * POST /api/auth/change-password (protected)
  * @param {{ currentPassword: string, newPassword: string }} data
  */
 export async function changePassword(data) {
   const res = await api.post('/auth/change-password', data);
   return res.data;
-}
-
-/**
- * POST /api/auth/logout
- * NOTE: Endpoint not yet implemented on backend.
- * Caller clears Zustand store and redirects manually.
- */
-export async function logout() {
-  // TODO: await api.post('/auth/logout') once backend adds the route
 }

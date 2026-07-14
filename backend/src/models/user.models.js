@@ -35,6 +35,24 @@ const userSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+
+    // ── Session invalidation ───────────────────────────────────────────
+    // Increment on logout and password change.
+    // Embedded in the JWT payload — mismatch = token is stale, reject it.
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+
+    // ── Brute-force protection ─────────────────────────────────────────
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -54,6 +72,11 @@ userSchema.methods.comparePassword = async function (password) {
 
 userSchema.methods.compareOTP = async function (plainOTP) {
   return await bcrypt.compare(plainOTP, this.otp);
+};
+
+// Returns true if the account is currently locked out
+userSchema.methods.isLocked = function () {
+  return this.lockUntil && this.lockUntil > Date.now();
 };
 
 const userModel = mongoose.model("user", userSchema);

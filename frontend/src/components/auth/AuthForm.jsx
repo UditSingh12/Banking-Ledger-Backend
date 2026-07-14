@@ -8,6 +8,7 @@ import { loginSchema, registerSchema } from '../../lib/schemas';
 import { useLogin, useRegister, useVerifyEmail, useResendOTP } from '../../hooks/useAuth';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+import LedgerStamp from '../ui/LedgerStamp';
 import OTPInput from './OTPInput';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -22,7 +23,7 @@ function getApiError(error) {
 const TABS = ['Log in', 'Sign up'];
 
 // ─── OTP Step ─────────────────────────────────────────────────────────────
-function OTPStep({ userId, email, onBack }) {
+function OTPStep({ userId, email, onBack, onVerificationSuccess }) {
   const [otp, setOTP] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
@@ -55,6 +56,37 @@ function OTPStep({ userId, email, onBack }) {
 
   const verifyError = verifyMutation.isError ? getApiError(verifyMutation.error) : null;
   const resendError = resendMutation.isError ? getApiError(resendMutation.error) : null;
+
+  if (verifyMutation.isSuccess) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0 }}
+        className="flex flex-col items-center text-center gap-5 py-6"
+      >
+        <LedgerStamp
+          show
+          label="VERIFIED"
+          subLabel="Your email has been verified successfully."
+        />
+        
+        <p className="text-xs text-[var(--color-slate-light)] leading-relaxed max-w-xs font-[var(--font-body)]">
+          Your account is now active and balanced. Proceed to the login panel to sign in with your email and password.
+        </p>
+
+        <Button
+          type="button"
+          size="lg"
+          className="w-full mt-4"
+          onClick={onVerificationSuccess}
+          id="go-to-login-btn"
+        >
+          Go to Login
+        </Button>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -98,6 +130,7 @@ function OTPStep({ userId, email, onBack }) {
               style={{
                 backgroundColor: 'rgba(155,59,59,0.12)',
                 border: '1px solid rgba(155,59,59,0.3)',
+                color: 'var(--color-debit-light)',
               }}
               role="alert"
             >
@@ -238,6 +271,13 @@ export default function AuthForm() {
             onBack={() => {
               setStep('tabs');
               setPendingUser(null);
+              registerMutation.reset();
+              loginMutation.reset();
+            }}
+            onVerificationSuccess={() => {
+              setStep('tabs');
+              setPendingUser(null);
+              setActiveTab('Log in');
               registerMutation.reset();
               loginMutation.reset();
             }}

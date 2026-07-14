@@ -1,18 +1,30 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
-import { createAccountSchema } from '../../lib/schemas';
+import LedgerStamp from '../ui/LedgerStamp';
 import { useCreateAccount } from '../../hooks/useAccounts';
 
-const CURRENCIES = [
-  { code: 'INR', label: 'Indian Rupee', symbol: '₹' },
-  { code: 'USD', label: 'US Dollar',    symbol: '$' },
-  { code: 'EUR', label: 'Euro',         symbol: '€' },
-  { code: 'GBP', label: 'British Pound',symbol: '£' },
+const ACCOUNT_TYPES = [
+  {
+    type: 'SAVINGS',
+    accentColor: 'var(--color-ledger)',
+    accentLight: 'rgba(23,57,46,0.25)',
+    accentBorder: 'rgba(31,77,61,0.7)',
+    label: 'Savings Account',
+    description: 'For building your reserves. Ideal for long-term deposits and personal funds.',
+    rulingColor: 'rgba(31,77,61,0.15)',
+  },
+  {
+    type: 'CURRENT',
+    accentColor: 'var(--color-brass)',
+    accentLight: 'rgba(182,141,64,0.12)',
+    accentBorder: 'rgba(182,141,64,0.55)',
+    label: 'Current Account',
+    description: 'For active use. Designed for frequent transactions and day-to-day operations.',
+    rulingColor: 'rgba(182,141,64,0.10)',
+  },
 ];
 
 function getApiErrorMessage(error) {
@@ -23,115 +35,113 @@ function getApiErrorMessage(error) {
   );
 }
 
-export default function CreateAccountModal({ isOpen, onClose, onCreated }) {
+export default function CreateAccountModal({ isOpen, onClose, onCreated, existingTypes = [] }) {
   const [selected, setSelected] = useState(null);
   const { mutate, isPending, isError, isSuccess, error, reset } = useCreateAccount();
 
-  const {
-    handleSubmit,
-    setValue,
-    formState: { errors },
-    reset: resetForm,
-  } = useForm({
-    resolver: zodResolver(createAccountSchema),
-  });
-
   function handleClose() {
-    resetForm();
     reset();
     setSelected(null);
     onClose();
   }
 
-  function handleSelect(code) {
-    setSelected(code);
-    setValue('currency', code, { shouldValidate: true });
-  }
-
-  function onSubmit(data) {
-    // Generate idempotency key on every submit — prevents duplicate creation on retry
-    const idempotencyKey = crypto.randomUUID();
+  function onSubmit() {
+    if (!selected) return;
     mutate(
-      { currency: data.currency, idempotencyKey },
+      { accountType: selected },
       {
         onSuccess: (account) => {
           onCreated?.(account);
-          setTimeout(() => {
-            handleClose();
-          }, 1400);
         },
       }
     );
   }
 
+  const alreadyOwned = (type) => existingTypes.includes(type);
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Open New Account">
       <AnimatePresence mode="wait">
         {isSuccess ? (
-          <motion.div
-            key="success"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center gap-3 py-6 text-center"
-          >
-            <CheckCircle2 size={36} className="text-[#4ade80]" />
-            <p className="text-sm text-[var(--color-paper)] font-[var(--font-body)]">
-              Account opened successfully.
-            </p>
-            <p className="text-xs text-[var(--color-slate)]">
-              Your new ledger account is now{' '}
-              <span className="text-[#4ade80] font-mono">ACTIVE</span>.
-            </p>
-          </motion.div>
+          <LedgerStamp
+            key="stamp"
+            show
+            label="OPENED"
+            subLabel={`Your ${selected} account is now ACTIVE and ready for transactions.`}
+          />
         ) : (
-          <motion.form
+          <motion.div
             key="form"
-            onSubmit={handleSubmit(onSubmit)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             className="flex flex-col gap-6"
           >
-            {/* Currency selector */}
-            <div className="flex flex-col gap-2">
-              <p className="eyebrow text-[var(--color-slate-light)]">Select Currency</p>
-              <div className="grid grid-cols-2 gap-2">
-                {CURRENCIES.map(({ code, label, symbol }) => (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => handleSelect(code)}
-                    className={[
-                      'flex flex-col items-start gap-1 p-4 rounded-[var(--radius-md)] border',
-                      'transition-colors duration-150 cursor-pointer text-left',
-                      selected === code
-                        ? 'border-[var(--color-brass)] bg-[rgba(182,141,64,0.08)]'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-slate)]',
-                    ].join(' ')}
-                    aria-pressed={selected === code}
-                  >
-                    <span className="font-mono text-lg text-[var(--color-brass)]">
-                      {symbol}
-                    </span>
-                    <span className="font-mono text-xs text-[var(--color-paper)] font-medium">
-                      {code}
-                    </span>
-                    <span className="text-xs text-[var(--color-slate)]">{label}</span>
-                  </button>
-                ))}
-              </div>
-              {errors.currency && (
-                <p
-                  role="alert"
-                  className="text-xs text-[var(--color-debit-light)]"
-                >
-                  {errors.currency.message}
-                </p>
-              )}
-            </div>
+            {/* Ledger-book type selector */}
+            <div className="flex flex-col gap-3">
+              <p className="eyebrow" style={{ color: 'var(--color-slate-light)' }}>
+                Select Account Type
+              </p>
 
-            {/* Idempotency note */}
-            <p className="text-xs text-[var(--color-slate)] leading-relaxed">
-              A unique idempotency key is generated on submit — safe to retry
-              without creating duplicates.
-            </p>
+              <div className="grid grid-cols-2 gap-3">
+                {ACCOUNT_TYPES.map(({ type, label, description, accentLight, accentBorder, rulingColor }) => {
+                  const owned = alreadyOwned(type);
+                  const isSelected = selected === type;
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      disabled={owned}
+                      onClick={() => !owned && setSelected(type)}
+                      className={[
+                        'relative flex flex-col items-start gap-2 p-4 rounded-[var(--radius-md)] border text-left overflow-hidden',
+                        'transition-all duration-200',
+                        owned
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'cursor-pointer',
+                      ].join(' ')}
+                      style={{
+                        backgroundColor: isSelected ? accentLight : 'var(--color-ink)',
+                        borderColor: isSelected ? accentBorder : 'var(--color-border)',
+                        // Ruled ledger lines in the card background
+                        backgroundImage: isSelected
+                          ? `repeating-linear-gradient(to bottom, transparent, transparent 15px, ${rulingColor} 15px, ${rulingColor} 16px)`
+                          : 'none',
+                      }}
+                      aria-pressed={isSelected}
+                      aria-disabled={owned}
+                    >
+                      {/* Account type badge */}
+                      <span
+                        className="font-mono text-xs font-semibold tracking-widest uppercase"
+                        style={{ color: isSelected ? accentBorder : 'var(--color-slate)' }}
+                      >
+                        {type}
+                      </span>
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: isSelected ? 'var(--color-paper)' : 'var(--color-slate-light)', fontFamily: 'var(--font-body)' }}
+                      >
+                        {label}
+                      </span>
+                      <span className="text-[11px] leading-relaxed" style={{ color: 'var(--color-slate)' }}>
+                        {description}
+                      </span>
+
+                      {/* "Already held" inline reason */}
+                      {owned && (
+                        <span
+                          className="font-mono text-[10px] mt-1"
+                          style={{ color: 'var(--color-debit-light)' }}
+                        >
+                          Already held
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* API error */}
             <AnimatePresence>
@@ -140,10 +150,11 @@ export default function CreateAccountModal({ isOpen, onClose, onCreated }) {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-start gap-2 p-3 rounded-[var(--radius-sm)] text-xs text-[var(--color-debit-light)]"
+                  className="flex items-start gap-2 p-3 rounded-[var(--radius-sm)] text-xs"
                   style={{
                     backgroundColor: 'rgba(155,59,59,0.12)',
                     border: '1px solid rgba(155,59,59,0.3)',
+                    color: 'var(--color-debit-light)',
                   }}
                   role="alert"
                 >
@@ -155,20 +166,20 @@ export default function CreateAccountModal({ isOpen, onClose, onCreated }) {
 
             {/* Actions */}
             <div className="flex gap-3 justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleClose}
-                disabled={isPending}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={handleClose} disabled={isPending}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" loading={isPending} disabled={isPending}>
+              <Button
+                type="button"
+                size="sm"
+                loading={isPending}
+                disabled={isPending || !selected}
+                onClick={onSubmit}
+              >
                 Open Account
               </Button>
             </div>
-          </motion.form>
+          </motion.div>
         )}
       </AnimatePresence>
     </Modal>

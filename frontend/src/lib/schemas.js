@@ -53,7 +53,28 @@ export const changePasswordSchema = z
   });
 
 export const createAccountSchema = z.object({
-  currency: z.enum(['INR', 'USD', 'EUR', 'GBP'], {
-    required_error: 'Please select a currency',
+  accountType: z.enum(['SAVINGS', 'CURRENT'], {
+    required_error: 'Please select an account type',
+    invalid_type_error: 'Account type must be SAVINGS or CURRENT',
   }),
+});
+
+export const transferSchema = z.object({
+  fromAccount: z.string().min(1, 'Source account is required'),
+  toAccount: z.string().min(24, 'Please enter a valid account ID').max(24, 'Please enter a valid account ID'),
+  amount: z
+    .number({ required_error: 'Amount is required', invalid_type_error: 'Amount must be a number' })
+    .positive('Amount must be greater than zero')
+    .max(10_000_000, 'Amount exceeds maximum transfer limit'),
+});
+
+export const accountStatusSchema = z.object({
+  status: z.enum(['ACTIVE', 'FROZEN', 'CLOSED']),
+});
+
+export const reversalSchema = z.object({
+  reason: z
+    .string()
+    .min(3, 'Please provide a reason (at least 3 characters)')
+    .max(500, 'Reason is too long'),
 });
