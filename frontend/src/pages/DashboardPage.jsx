@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, LogOut, KeyRound } from 'lucide-react';
+import { Plus, LogOut, KeyRound, ShieldCheck, ShieldOff, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAccounts } from '../hooks/useAccounts';
 import { useLogout } from '../hooks/useAuth';
@@ -13,12 +14,12 @@ import Button from '../components/ui/Button';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
-  const { data: accounts = [], isLoading } = useAccounts();
+  const navigate = useNavigate();
+  const { data: accounts = [], isLoading: accountsLoading, isError: accountsError } = useAccounts();
   const { mutate: logout, isPending: loggingOut } = useLogout();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-
   // Account status modal
   const [statusModal, setStatusModal] = useState({ open: false, account: null, targetStatus: null });
 
@@ -79,6 +80,23 @@ export default function DashboardPage() {
 
           <div className="w-px h-4 bg-[var(--color-border)]" aria-hidden="true" />
 
+          {/* Admin Console link — only visible to ADMIN users */}
+          {user?.role === 'ADMIN' && (
+            <>
+              <button
+                onClick={() => navigate('/admin')}
+                className="flex items-center gap-1.5 text-xs transition-colors duration-150 cursor-pointer"
+                style={{ color: 'var(--color-brass)' }}
+                title="Admin Console"
+                id="admin-console-btn"
+              >
+                <Shield size={14} />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+              <div className="w-px h-4 bg-[var(--color-border)]" aria-hidden="true" />
+            </>
+          )}
+
           <Button
             variant="ghost"
             size="sm"
@@ -123,7 +141,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Loading skeleton */}
-        {isLoading && (
+        {accountsLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
             {[1, 2].map((n) => (
               <div
@@ -136,7 +154,7 @@ export default function DashboardPage() {
         )}
 
         {/* Account grid */}
-        {!isLoading && accounts.length > 0 && (
+        {!accountsLoading && accounts.length > 0 && (
           <motion.div
             className="grid grid-cols-1 sm:grid-cols-2 gap-5"
             initial="hidden"
@@ -155,7 +173,7 @@ export default function DashboardPage() {
         )}
 
         {/* Empty state */}
-        {!isLoading && accounts.length === 0 && (
+        {!accountsLoading && accounts.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Filter, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Filter, RotateCcw, ArrowUp, ArrowDown, FileWarning } from 'lucide-react';
 import { useTransactionHistory } from '../../hooks/useTransactions';
 import ReversalModal from './ReversalModal';
+import RaiseDisputeModal from './RaiseDisputeModal';
 
 const CURRENCY_SYMBOLS = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
 
@@ -55,6 +56,7 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
   const [filters, setFilters] = useState({ page: 1, limit: 15 });
   const [showFilters, setShowFilters] = useState(false);
   const [reversalTxn, setReversalTxn] = useState(null);
+  const [disputeTxn, setDisputeTxn] = useState(null);
 
   const { data, isLoading, isError } = useTransactionHistory(accountId, filters);
 
@@ -154,6 +156,7 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
                 <option value="PENDING">Pending</option>
                 <option value="FAILED">Failed</option>
                 <option value="REVERSED">Reversed</option>
+                <option value="DISPUTED">Disputed</option>
               </select>
             </div>
             {/* Start Date */}
@@ -215,6 +218,8 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
               const isLinked = !!linkedMap[txn._id];
               const isReversal = txn.type === 'REVERSAL';
               const canReverse = txn.status === 'COMPLETED' && !txn.reversedBy && txn.type !== 'REVERSAL';
+              const canDispute = txn.status === 'COMPLETED' && !isReversal;
+              const isDisputed = txn.status === 'DISPUTED';
 
               return (
                 <motion.div
@@ -264,6 +269,21 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
                         ↩ Reverse
                       </button>
                     )}
+                    {/* Dispute action */}
+                    {canDispute && (
+                      <button
+                        onClick={() => setDisputeTxn(txn)}
+                        className="text-[11px] font-mono mt-0.5 self-start flex items-center gap-0.5 transition-colors cursor-pointer"
+                        style={{ color: 'var(--color-slate)' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = '#f97316')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-slate)')}
+                      >
+                        <FileWarning size={9} /> Dispute
+                      </button>
+                    )}
+                    {isDisputed && (
+                      <span className="text-[10px] font-mono mt-0.5" style={{ color: '#f97316' }}>⚠ Under Review</span>
+                    )}
                   </div>
 
                   {/* Type */}
@@ -277,6 +297,7 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
                         txn.status === 'COMPLETED' ? '#4ade80'
                           : txn.status === 'FAILED' ? 'var(--color-debit-light)'
                           : txn.status === 'REVERSED' ? '#60a5fa'
+                          : txn.status === 'DISPUTED' ? '#f97316'
                           : 'var(--color-slate)',
                     }}
                   >
@@ -329,6 +350,13 @@ export default function TransactionHistory({ accountId, currency = 'INR' }) {
         isOpen={!!reversalTxn}
         onClose={() => setReversalTxn(null)}
         transaction={reversalTxn}
+      />
+
+      {/* Dispute modal */}
+      <RaiseDisputeModal
+        isOpen={!!disputeTxn}
+        onClose={() => setDisputeTxn(null)}
+        transaction={disputeTxn}
       />
     </div>
   );

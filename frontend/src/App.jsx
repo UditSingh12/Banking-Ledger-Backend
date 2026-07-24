@@ -3,7 +3,9 @@ import LandingPage from './pages/LandingPage';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import AccountDetailPage from './pages/AccountDetailPage';
+import AdminPage from './pages/AdminPage';
 import ProtectedRoute from './routes/ProtectedRoute';
+import AdminRoute from './routes/AdminRoute';
 
 export default function App() {
   return (
@@ -11,6 +13,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<AuthPage />} />
+
         <Route
           path="/dashboard"
           element={
@@ -27,6 +30,15 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        />
+
         {/* Catch-all → landing */}
         <Route path="*" element={<LandingPage />} />
       </Routes>

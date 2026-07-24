@@ -6,6 +6,9 @@ import {
   Lock,
   CreditCard,
   Activity,
+  AlertTriangle,
+  Users,
+  Database,
 } from 'lucide-react';
 
 const features = [
@@ -25,14 +28,29 @@ const features = [
     body: 'JWTs live exclusively in HTTP-only cookies. Your credentials never touch localStorage or frontend state.',
   },
   {
-    icon: Activity,
-    title: 'Account Status Controls',
-    body: 'Accounts can be ACTIVE, FROZEN, or CLOSED — giving you granular control over fund availability at any time.',
-  },
-  {
     icon: Lock,
     title: 'Protected by Default',
     body: 'All account and transaction endpoints sit behind JWT middleware — no unauthenticated access, ever.',
+  },
+  {
+    icon: AlertTriangle,
+    title: 'Dispute Resolution',
+    body: 'Securely flag suspicious transactions. Built-in mechanisms to freeze funds and handle transaction reversals safely.',
+  },
+  {
+    icon: Users,
+    title: 'Role-Based Access',
+    body: 'Strict segregation of duties. Only authorized ADMIN accounts have access to system-wide transaction and dispute monitoring.',
+  },
+  {
+    icon: Database,
+    title: 'Atomic Transactions',
+    body: 'Leveraging MongoDB ACID transactions, ensuring that multi-step ledger updates either fully succeed or entirely roll back.',
+  },
+  {
+    icon: Activity,
+    title: 'Account Status Controls',
+    body: 'Accounts can be ACTIVE, FROZEN, or CLOSED — giving you granular control over fund availability at any time.',
   },
   {
     icon: CreditCard,
@@ -40,6 +58,7 @@ const features = [
     body: 'Built on a schema that tracks both fromAccount and toAccount, keeping every debit balanced by a corresponding credit.',
   },
 ];
+
 
 const containerVariants = {
   hidden: {},
