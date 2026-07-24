@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  # ── MongoDB — single-node replica set (required for Mongoose transactions) ──
+  mongo:
+    image: mongo:7
+    container_name: ledger-mongo
+    command: --replSet rs0 --bind_ip_all --port 27018
+    ports:
+      - '27018:27018'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--port', '27018', '--eval', "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot init container — runs rs.initiate() once and exits
+  mongo-init:
+    image: mongo:7
+    container_name: ledger-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    entrypoint: >
+      mongosh --host mongo --port 27018 --eval
+      "try { rs.status() } catch(e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27018' }] }) }"
+    restart: 'no'
+
+  # ── Redis — required for BullMQ email job queue ───────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ledger-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+
+volumes:
+  mongo-data:
+  redis-data:
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Local dev setup:
+#   1. docker compose up -d
+#   2. Set MONGO_URI in backend/.env:
+#      MONGO_URI=mongodb://localhost:27017/backend-ledger?replicaSet=rs0
+#   3. Set REDIS_URL in backend/.env:
+#      REDIS_URL=redis://localhost:6379
+#   4. npm run dev  (inside backend/)
+# ──────────────────────────────────────────────────────────────────────────────
