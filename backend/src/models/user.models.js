@@ -22,21 +22,31 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
-    // ── Email verification via OTP ─────────────────────────────────────
+    // ── RBAC ───────────────────────────────────────────────────────────────
+    // USER = standard account holder.
+    // ADMIN = platform operator — can view all data, unlock accounts, resolve disputes.
+    // Set to ADMIN directly in the DB for the first operator (no self-promotion).
+    role: {
+      type: String,
+      enum: ["USER", "ADMIN"],
+      default: "USER",
+    },
+
+    // ── Email verification via OTP ─────────────────────────────────────────
     isVerified: {
       type: Boolean,
       default: false,
     },
     otp: {
       type: String,
-      select: false,   // never returned in queries by default
+      select: false, // never returned in queries by default
     },
     otpExpiry: {
       type: Date,
       select: false,
     },
 
-    // ── Session invalidation ───────────────────────────────────────────
+    // ── Session invalidation ───────────────────────────────────────────────
     // Increment on logout and password change.
     // Embedded in the JWT payload — mismatch = token is stale, reject it.
     tokenVersion: {
@@ -44,7 +54,7 @@ const userSchema = new mongoose.Schema(
       default: 0,
     },
 
-    // ── Brute-force protection ─────────────────────────────────────────
+    // ── Brute-force protection ─────────────────────────────────────────────
     failedLoginAttempts: {
       type: Number,
       default: 0,
@@ -52,6 +62,19 @@ const userSchema = new mongoose.Schema(
     lockUntil: {
       type: Date,
       default: null,
+    },
+
+    // ── 2FA / TOTP ────────────────────────────────────────────────────────
+    // twoFactorSecret is the base32 TOTP secret (select: false — never in JSON).
+    // twoFactorEnabled is the flag that gates step-up authentication.
+    twoFactorSecret: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
     },
   },
   {

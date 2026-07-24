@@ -51,4 +51,28 @@ async function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = { authMiddleware };
+/**
+ * requireRole — role-based access control middleware.
+ *
+ * Usage: router.use(authMiddleware, requireRole('ADMIN'))
+ *
+ * Always chain after authMiddleware so req.user is populated.
+ *
+ * @param {...string} roles — one or more allowed roles (e.g. 'ADMIN', 'USER')
+ */
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Authentication required", status: "Failed" });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: `Access denied. Required role: ${roles.join(" or ")}`,
+        status: "Failed",
+      });
+    }
+    next();
+  };
+}
+
+module.exports = { authMiddleware, requireRole };

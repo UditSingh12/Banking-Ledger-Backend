@@ -97,12 +97,38 @@ const reversalSchema = z.object({
 const transactionQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.enum(["PENDING", "COMPLETED", "FAILED", "REVERSED"]).optional(),
+  status: z.enum(["PENDING", "COMPLETED", "FAILED", "REVERSED", "DISPUTED"]).optional(),
   type: z.enum(["TRANSFER", "DEPOSIT", "WITHDRAWAL", "REVERSAL"]).optional(),
   direction: z.enum(["incoming", "outgoing"]).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
+
+// ── 2FA / TOTP schema ─────────────────────────────────────────────────────
+const totpCodeSchema = z.object({
+  totpCode: z.string().length(6, "TOTP code must be exactly 6 digits").regex(/^\d{6}$/, "TOTP code must contain only digits"),
+});
+
+// ── Dispute schema ────────────────────────────────────────────────────────
+const disputeSchema = z.object({
+  reason: z
+    .string()
+    .min(10, "Please provide at least 10 characters describing the issue")
+    .max(1000, "Reason must be under 1000 characters"),
+});
+
+// ── Admin schemas ─────────────────────────────────────────────────────────
+const adminFlagSchema = z.object({
+  riskFlag: z.boolean(),
+  riskReason: z.string().max(500).optional().nullable(),
+});
+
+const adminDisputeResolveSchema = z.object({
+  status: z.enum(["RESOLVED", "REJECTED"]),
+  resolution: z.string().min(5, "Please provide a resolution of at least 5 characters").max(2000),
+});
+
+const adminUnlockSchema = z.object({}).optional();
 
 module.exports = {
   validate,
@@ -116,4 +142,9 @@ module.exports = {
   transferSchema,
   reversalSchema,
   transactionQuerySchema,
+  totpCodeSchema,
+  disputeSchema,
+  adminFlagSchema,
+  adminDisputeResolveSchema,
+  adminUnlockSchema,
 };

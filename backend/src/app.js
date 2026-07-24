@@ -6,17 +6,13 @@ const mongoSanitize = require("express-mongo-sanitize");
 
 const app = express();
 
-// ── Make req.query writable in Express 5 ─────────────────────────────────
-// In Express 5, req.query is an immutable getter. This middleware unpacks
-// it into a standard writable property so third-party middleware (like
-// express-mongo-sanitize) and custom validator middlewares can mutate it.
+// ── Express 5 Mongo Sanitize fix ──────────────────────────────────────────
+// express-mongo-sanitize's default middleware tries to reassign req.query,
+// which crashes in Express 5. We apply the sanitization manually in-place.
 app.use((req, res, next) => {
-  Object.defineProperty(req, "query", {
-    value: { ...req.query },
-    writable: true,
-    configurable: true,
-    enumerable: true,
-  });
+  if (req.body) mongoSanitize.sanitize(req.body);
+  if (req.params) mongoSanitize.sanitize(req.params);
+  if (req.query) mongoSanitize.sanitize(req.query);
   next();
 });
 
@@ -51,18 +47,18 @@ app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 
 // ── Mongo injection protection ────────────────────────────────────────────
-// Strips keys starting with '$' or containing '.' from user-controlled input.
-// Defends against query injection attacks like { password: { $gt: '' } }.
-app.use(mongoSanitize());
+// (Applied manually above via mongoSanitize.sanitize)
 
 // ── Routes ────────────────────────────────────────────────────────────────
 const authRouter = require("./routes/auth.routes");
 const accountRouter = require("./routes/account.routes");
 const transactionRouter = require("./routes/transaction.routes");
+const adminRouter = require("./routes/admin.routes");
 
 app.use("/api/auth", authRouter);
 app.use("/api/account", accountRouter);
 app.use("/api/transaction", transactionRouter);
+app.use("/api/admin", adminRouter);
 
 // ── Global error handler (must be last — after all routes) ───────────────
 app.use((err, req, res, next) => {

@@ -26,8 +26,8 @@ const transactionSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["PENDING", "COMPLETED", "FAILED", "REVERSED"],
-        message: "Status must be PENDING, COMPLETED, FAILED, or REVERSED",
+        values: ["PENDING", "COMPLETED", "FAILED", "REVERSED", "DISPUTED"],
+        message: "Status must be PENDING, COMPLETED, FAILED, REVERSED, or DISPUTED",
       },
       default: "PENDING",
     },
@@ -43,26 +43,21 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // ── Gateway hook point ─────────────────────────────────────────────
+    // ── Gateway hook point ─────────────────────────────────────────────────
     // INTERNAL = handled by this service's own transfer logic.
     // GATEWAY  = initiated via an external payment provider (Razorpay etc.).
-    // This field keeps gateway concerns outside the core transfer service —
-    // a gateway integration only needs to set source: 'GATEWAY' and provide
-    // any provider-specific metadata in a separate field.
     source: {
       type: String,
       enum: ["INTERNAL", "GATEWAY"],
       default: "INTERNAL",
     },
 
-    // ── Reversal linkage ───────────────────────────────────────────────
-    // reversalOf: set on a REVERSAL transaction, pointing to the original
+    // ── Reversal linkage ───────────────────────────────────────────────────
     reversalOf: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "transaction",
       default: null,
     },
-    // reversedBy: set on the ORIGINAL transaction once it's been reversed
     reversedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "transaction",
@@ -76,9 +71,6 @@ const transactionSchema = new mongoose.Schema(
     },
   },
   {
-    // timestamps: true MUST be in the options object, not inside the schema
-    // body — this was a bug in the original model causing createdAt/updatedAt
-    // to silently not be added to documents.
     timestamps: true,
   }
 );

@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const emailService = require("../services/email.service");
 const auditService = require("../services/audit.service");
+const { authenticator } = require("otplib");
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -23,24 +24,22 @@ function isProduction() {
 
 /**
  * Signs a JWT embedding tokenVersion so old tokens can be invalidated server-side.
+ * Also embeds role so the frontend can determine access level without an extra fetch.
  */
 function signToken(user) {
   return jwt.sign(
-    { userId: user._id, tokenVersion: user.tokenVersion },
+    { userId: user._id, tokenVersion: user.tokenVersion, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: "14d" }
   );
 }
 
-/**
- * Sets the auth cookie with appropriate security flags.
- */
 function setAuthCookie(res, token) {
   res.cookie("token", token, {
-    httpOnly: true,                       // not accessible via JS
-    secure: isProduction(),               // HTTPS only in production
+    httpOnly: true,
+    secure: isProduction(),
     sameSite: isProduction() ? "strict" : "lax",
-    maxAge: 14 * 24 * 60 * 60 * 1000,   // 14 days in ms
+    maxAge: 14 * 24 * 60 * 60 * 1000,
   });
 }
 
@@ -52,11 +51,8 @@ function getClientIP(req) {
 
 /**
  * POST /api/auth/register
- * Creates an unverified user, sends OTP email.
- * Does NOT set a JWT cookie — login happens after email verification.
  */
 async function userRegisterController(req, res) {
-  // req.body is pre-validated by Zod middleware
   const { email, name, password } = req.body;
 
   try {
@@ -89,7 +85,6 @@ async function userRegisterController(req, res) {
       });
     }
 
-    // Non-blocking — email failure doesn't fail the registration
     emailService.sendOTPEmail(user.email, user.name, otp).catch((e) =>
       console.error("[Auth] OTP email failed:", e.message)
     );
@@ -105,7 +100,6 @@ async function userRegisterController(req, res) {
 
 /**
  * POST /api/auth/verify-email
- * Verifies the 6-digit OTP, marks user as verified.
  */
 async function verifyEmailController(req, res) {
   const { userId, otp } = req.body;
@@ -165,8 +159,6 @@ async function resendOTPController(req, res) {
 
 /**
  * POST /api/auth/login
- * Authenticates user. Enforces account-level lockout.
- * Embeds tokenVersion in JWT payload.
  */
 async function userLoginController(req, res) {
   const { email, password } = req.body;
@@ -176,14 +168,9 @@ async function userLoginController(req, res) {
     const user = await userModel.findOne({ email }).select("+password +failedLoginAttempts +lockUntil");
 
     if (!user) {
-      // Don't reveal whether the email exists — generic message
-      return res.status(401).json({
-        message: "Incorrect email or password.",
-        status: "Failed",
-      });
+      return res.status(401).json({ message: "Incorrect email or password.", status: "Failed" });
     }
 
-    // ── Account lockout check ─────────────────────────────────────────
     if (user.isLocked()) {
       const remainingMs = user.lockUntil - Date.now();
       const remainingMins = Math.ceil(remainingMs / 60000);
@@ -204,19 +191,16 @@ async function userLoginController(req, res) {
 
     const isValidPassword = await user.comparePassword(password);
     if (!isValidPassword) {
-      // ── Increment failed attempts ────────────────────────────────────
       user.failedLoginAttempts += 1;
       const updates = { failedLoginAttempts: user.failedLoginAttempts };
 
       if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
         updates.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
         await userModel.findByIdAndUpdate(user._id, updates);
-
-        // Audit log the lockout
         auditService.log({ userId: user._id, action: "ACCOUNT_LOCKED", ip, metadata: { attempts: user.failedLoginAttempts } });
 
         return res.status(423).json({
-          message: `Too many failed attempts. Account locked for 15 minutes.`,
+          message: "Too many failed attempts. Account locked for 15 minutes.",
           lockedUntil: updates.lockUntil,
           status: "Locked",
         });
@@ -232,24 +216,20 @@ async function userLoginController(req, res) {
       });
     }
 
-    // ── Success — reset failed attempts, issue token ──────────────────
-    await userModel.findByIdAndUpdate(user._id, {
-      failedLoginAttempts: 0,
-      lockUntil: null,
-    });
+    await userModel.findByIdAndUpdate(user._id, { failedLoginAttempts: 0, lockUntil: null });
 
     const token = signToken(user);
     setAuthCookie(res, token);
 
-    // Calculate token expiry timestamp so frontend can set a timer
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-
     auditService.log({ userId: user._id, action: "LOGIN", ip });
 
     return res.status(200).json({
       _id: user._id,
       email: user.email,
       name: user.name,
+      role: user.role,
+      twoFactorEnabled: user.twoFactorEnabled,
       expiresAt,
     });
   } catch (error) {
@@ -259,7 +239,6 @@ async function userLoginController(req, res) {
 
 /**
  * POST /api/auth/logout (protected)
- * Increments tokenVersion to invalidate all existing tokens, clears the cookie.
  */
 async function logoutController(req, res) {
   try {
@@ -281,7 +260,6 @@ async function logoutController(req, res) {
 
 /**
  * POST /api/auth/change-password (protected)
- * Verifies current password, sets new one, increments tokenVersion.
  */
 async function changePasswordController(req, res) {
   const { currentPassword, newPassword } = req.body;
@@ -295,17 +273,15 @@ async function changePasswordController(req, res) {
 
   try {
     const user = await userModel.findById(req.user._id).select("+password");
-
     const isValid = await user.comparePassword(currentPassword);
     if (!isValid) {
       return res.status(401).json({ message: "Current password is incorrect", status: "Failed" });
     }
 
-    user.password = newPassword; // pre-save hook will hash it
-    user.tokenVersion += 1;      // invalidate all other sessions
+    user.password = newPassword;
+    user.tokenVersion += 1;
     await user.save();
 
-    // Clear the current cookie — user must log in again with new password
     res.clearCookie("token", {
       httpOnly: true,
       secure: isProduction(),
@@ -320,6 +296,114 @@ async function changePasswordController(req, res) {
   }
 }
 
+// ── 2FA / TOTP ────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/auth/2fa/setup (protected)
+ * Generates a new TOTP secret and returns a QR-code URI for the authenticator app.
+ * The secret is NOT saved until the user verifies it with a valid code.
+ */
+async function setup2FA(req, res) {
+  try {
+    const secret = authenticator.generateSecret();
+    const otpAuthUrl = authenticator.keyuri(req.user.email, "Ledger", secret);
+
+    // Store pending secret in the user document (overwritten until confirmed)
+    await userModel.findByIdAndUpdate(req.user._id, { twoFactorSecret: secret });
+
+    return res.status(200).json({
+      secret,
+      otpAuthUrl,
+      message: "Scan the QR code with your authenticator app, then call /2fa/confirm with the 6-digit code.",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to set up 2FA. Please try again.", status: "Failed" });
+  }
+}
+
+/**
+ * POST /api/auth/2fa/confirm (protected)
+ * Verifies the TOTP code and enables 2FA on the account.
+ */
+async function confirm2FA(req, res) {
+  const { totpCode } = req.body;
+
+  try {
+    const user = await userModel.findById(req.user._id).select("+twoFactorSecret");
+
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ message: "Please call /2fa/setup first.", status: "Failed" });
+    }
+
+    const isValid = authenticator.check(totpCode, user.twoFactorSecret);
+    if (!isValid) {
+      return res.status(400).json({ message: "Invalid authenticator code. Please try again.", status: "Failed" });
+    }
+
+    user.twoFactorEnabled = true;
+    await user.save();
+
+    return res.status(200).json({ message: "Two-factor authentication enabled successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to confirm 2FA.", status: "Failed" });
+  }
+}
+
+/**
+ * POST /api/auth/2fa/disable (protected)
+ * Disables 2FA after verifying a valid TOTP code.
+ */
+async function disable2FA(req, res) {
+  const { totpCode } = req.body;
+
+  try {
+    const user = await userModel.findById(req.user._id).select("+twoFactorSecret");
+
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({ message: "2FA is not enabled on this account.", status: "Failed" });
+    }
+
+    const isValid = authenticator.check(totpCode, user.twoFactorSecret);
+    if (!isValid) {
+      return res.status(400).json({ message: "Invalid authenticator code.", status: "Failed" });
+    }
+
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = null;
+    await user.save();
+
+    return res.status(200).json({ message: "Two-factor authentication has been disabled." });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to disable 2FA.", status: "Failed" });
+  }
+}
+
+/**
+ * POST /api/auth/2fa/verify-step-up (protected)
+ * Lightweight step-up verification endpoint — validates a TOTP code without
+ * any other side-effects. Used by the transfer wizard to gate large transfers.
+ */
+async function verifyStepUp2FA(req, res) {
+  const { totpCode } = req.body;
+
+  try {
+    const user = await userModel.findById(req.user._id).select("+twoFactorSecret");
+
+    if (!user.twoFactorEnabled) {
+      return res.status(200).json({ verified: true, message: "2FA not required." });
+    }
+
+    const isValid = authenticator.check(totpCode, user.twoFactorSecret);
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid authenticator code.", status: "Failed" });
+    }
+
+    return res.status(200).json({ verified: true });
+  } catch (error) {
+    return res.status(500).json({ message: "Step-up verification failed.", status: "Failed" });
+  }
+}
+
 module.exports = {
   userRegisterController,
   verifyEmailController,
@@ -327,4 +411,8 @@ module.exports = {
   userLoginController,
   logoutController,
   changePasswordController,
+  setup2FA,
+  confirm2FA,
+  disable2FA,
+  verifyStepUp2FA,
 };
